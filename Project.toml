@@ -3,6 +3,9 @@ uuid = "d0ebc319-a88b-47dc-9500-c8b66e728bce"
 authors = ["KlausC <klausC@users.noreply.github.com> and contributors"]
 version = "0.1.0"
 
+[deps]
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+
 [compat]
 julia = "1"
 
