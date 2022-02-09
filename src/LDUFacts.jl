@@ -7,12 +7,8 @@ using LinearAlgebra: PivotingStrategy, NoPivot
 import LinearAlgebra: rmul!, lmul!, adjoint
 import Base: (*)
 
-export ldu, ldu!
+export ldu, ldu!, ldu_update!
 export NoPivot, DiagonalPivot, FullPivot
-
-struct LDU{T<:AbstractMatrix}
-    data::T
-end
 
 struct LDUPivoted{S,T<:AbstractMatrix{S},F<:Real}
     factors::T

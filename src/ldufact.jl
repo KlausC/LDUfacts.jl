@@ -20,7 +20,7 @@ end
 const PAM = Int[]
 const AME = Float64[]
 
-function permbypiv!(A::AbstractVector, piv::AbstractVector{<:Integer}, pam::AbstractVector{<:Integer}=PAM, B::AbstractVector=AME)
+function permbypiv!(A::StridedVector, piv::AbstractVector{<:Integer}, pam::AbstractVector{<:Integer}=PAM, B::AbstractVector=AME; dims=1)
     n = length(piv)
     nn = length(A)
     ma = length(pam)
@@ -115,6 +115,24 @@ function absapp(a::Complex{T}) where T
         #c = (q / c + c) / 2
         c = c * r
     end
+end
+
+splitexp(a::AbstractFloat) = frexp(a)
+function splitexp(a::Union{Integer,Rational})
+    q, x = frexp(float(a))
+    x >= 0 ? a / 2^x : a * 2^(-x), x
+end
+
+function sqrtapp(a::Real)
+    q, x = splitexp(a)
+    if isodd(x)
+        q += q
+        x -= 1
+    end
+    x ÷= 2
+    c = (12 - (3 - q)^2) / 8
+    c = (q / c + c) / 2
+    x >= 0 ? c * 2^x : c / 2^(-x)
 end
 
 default_tol(A::AbstractMatrix, ::PivotingStrategy) = eps(float(maximum(abs, diag(A))) * size(A, 1))
@@ -330,10 +348,11 @@ end
 
 adjoint(p::S) where {T,S<:LDUPerm{T}} = Adjoint{T,S}(p)
 
-rmul!(A::AbstractMatrix, p::LDUPerm) = permbypiv!(A, p.piv, p.pam, p.ame, dims = 2)
-function lmul!(P::Adjoint{<:Any,<:LDUPerm}, A::AbstractMatrix)
+rmul!(A::StridedArray, p::LDUPerm) = permbypiv!(A, p.piv, p.pam, p.ame, dims = 2)
+function lmul!(P::Adjoint{<:Any,<:LDUPerm}, A::StridedArray)
     p = P.parent
     permbypiv!(A, p.piv, p.pam, p.ame, dims = 1)
 end
-(*)(A::StridedMatrix, p::LDUPerm) = rmul!(copy(A), p)
-(*)(p::Adjoint{<:Any,<:LDUPerm}, A::StridedMatrix) = lmul!(p, copy(A))
+(*)(A::AbstractArray, p::LDUPerm) = rmul!(copy(A), p)
+(*)(p::Adjoint{<:Any,<:LDUPerm}, A::AbstractMatrix) = lmul!(p, copy(A))
+(*)(p::Adjoint{<:Any,<:LDUPerm}, A::AbstractVector) = lmul!(p, copy(A))

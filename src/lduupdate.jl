@@ -1,14 +1,24 @@
 
-function ldu_update!(ldu::LDU, u::AbstractVector, f::Real)
-    A = ldu.data
+"""
+    ldu_update!(ldu::LDUPivoted, u::Vector, f::Real)
+
+Given the LDU factorization `ldu: P' * A * P = L * D * L'` of a symmetric real or hermitian matrix `A`, update
+`ldu` to obtain a factorization of `A + u * u' * f` without changing `L`.
+
+This attempt may fail with a `SingularException` if the new pivot elements becomes zero.
+"""
+function ldu_update!(ldu::LDUPivoted, u::AbstractVector, f::Real)
+    A = ldu.factors
     n = checksquare(A)
-    @assert length(u) == m
+    length(u) == n || throw(ArgumentError("vector size $(length(u)) does not match matrix size $n"))
+    u = ldu.P' * u
+
     for k = 1:n
         d1 = real(A[k,k])
         d2 = f
         u1 = u[k]
         dis = d1 + d2 * abs2(u1)
-        abs2(dis) < abs2(d1) / 100 && continue
+        iszero(abs2(dis)) && throw(SingularException(k))
         c = d1 / dis
         s = d2 * adjoint(u1) / dis
         for i = k+1:n
@@ -23,22 +33,24 @@ function ldu_update!(ldu::LDU, u::AbstractVector, f::Real)
     ldu
 end
 
-function ldu_update!(ldu::LDU, u::AbstractVector, v::AbstractVector, f::Real)
-    g = sqrt(norm(u) / norm(v) * 2)
+"""
+    ldu_update!(ldu::LDUPivoted, u::Vector, v::Vector, f::Real)
+
+Given the LDU factorization `ldu: P' * A * P = L * D * L'` of a symmetric real or hermitian matrix `A`, update
+`ldu` to obtain a factorization of `A + (u * v' + v * u') * f` without changing `L`.
+
+This attempt may fail with a `SingularException` if the new pivot elements becomes zero.
+"""
+function ldu_update!(ldu::LDUPivoted, u::AbstractVector, v::AbstractVector, f::Real)
+    un = maximum(abs, u)
+    vn = maximum(abs, v)
+    (iszero(un) || iszero(vn) ) && return ldu
+    g = sqrtapp(un / vn)
     u = u / g
-    v = v * (g / 2)
+    v = v * g
+    f = f / 2
     upv = u + v
     umv = u - v
     ldu_update!(ldu, upv, f)
-    ldu_update!(ldu, ump, -f)
-end
-
-function ldu_update(A, u, f)
-    u = float.(collect(u))
-    ldu = ldu_update!(LDU(copy(A.data)), u, f)
-    (ldu, u)
-end
-
-function matrix(ldu::LDU)
-    Adjoint(UnitUpperTriangular(ldu.data)) * Diagonal(diag(ldu.data)) * UnitUpperTriangular(ldu.data)
+    ldu_update!(ldu, umv, -f)
 end
