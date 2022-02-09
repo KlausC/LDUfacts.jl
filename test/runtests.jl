@@ -4,5 +4,5 @@ using LinearAlgebra
 using Test
 
 @testset "LDUFacts.jl" begin
-    include("ldufacts.jl")
+    include("ldufact.jl")
 end
