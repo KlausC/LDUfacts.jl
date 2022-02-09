@@ -1,6 +1,8 @@
 using LDUFacts
+using LinearAlgebra
+
 using Test
 
 @testset "LDUFacts.jl" begin
-    # Write your tests here.
+    include("ldufacts.jl")
 end
