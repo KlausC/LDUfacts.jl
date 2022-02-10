@@ -18,7 +18,8 @@ function ldu_update!(ldu::LDUPivoted, u::AbstractVector, f::Real)
         d2 = f
         u1 = u[k]
         dis = d1 + d2 * abs2(u1)
-        iszero(abs2(dis)) && throw(SingularException(k))
+        A[k,k] = dis
+        iszero(dis) && throw(SingularException(k))
         c = d1 / dis
         s = d2 * adjoint(u1) / dis
         for i = k+1:n
@@ -26,7 +27,6 @@ function ldu_update!(ldu::LDUPivoted, u::AbstractVector, f::Real)
             A[k,i] = A[k,i] * c + u[i] * s
             u[i] = ui
         end
-        A[k,k] = dis
         u[k] = 0
         f = d1 * d2 / dis
     end
