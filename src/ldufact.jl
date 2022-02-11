@@ -94,8 +94,7 @@ function imagespace(la::LDUPivoted)
     la.L[pp,1:lp.rank]
 end
 
-_absapp(a::Real) = abs(a)
-absapp(a::Real) = float(abs(a))
+absapp(a::Real) = abs(a)
 
 """
     absapp(x)
@@ -103,7 +102,7 @@ absapp(a::Real) = float(abs(a))
 Squareroot-less approximation to `abs(x)`. That may differ from `abs` for complex arguments.
 """
 function absapp(a::Complex{T}) where T
-    s, r = minmax(_absapp(real(a)), _absapp(imag(a)))
+    s, r = minmax(absapp(real(a)), absapp(imag(a)))
     if iszero(r)
         zero(s) / one(s)
     else
