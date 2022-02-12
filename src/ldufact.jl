@@ -198,9 +198,9 @@ function ldu!(A::StridedMatrix{T}, ps::P; iter::Integer=0, tol::Real=0.0, check:
             break
         end
         for j = k+1:n
-            akj = adjoint(A[k,j]) / akk
+            akj = A[k,j] / akk
             for i = k+1:j
-                @inbounds A[i,j] -= akj * A[k,i]
+                @inbounds A[i,j] -= akj * adjoint(A[k,i])
             end
         end
         for i = 1:min(k-1,rank)
@@ -218,7 +218,7 @@ end
 
 function _pivotstep!(A, k, ::FullPivot, piv, pam, ame)
     n = size(A, 1)
-    a = zero(A[k,k])
+    a = zero(real(eltype(A)))
     jj = ii = k
     @inbounds for j = k:n
         for i = j:-1:k
@@ -291,9 +291,10 @@ function _addto_upper!(A::AbstractMatrix, i::Int, j::Int, pam, ame)
     d = A[i,j]
     aii = A[i,i]
     ajj = A[j,j]
-    eps = opteps(d, aii + ajj)
+    rsum = real(aii) + real(ajj)
+    eps = opteps(d, rsum)
     eps2 = adjoint(eps) * eps
-    epsd = optepsd(d, aii + ajj)
+    epsd = optepsd(d, rsum)
     @assert eps * d ≈ epsd "eps * d... $eps * $d != $epsd"
 
     @inbounds begin

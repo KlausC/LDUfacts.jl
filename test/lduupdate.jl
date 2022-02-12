@@ -1,6 +1,4 @@
 
-Random.seed!(2)
-
 @testset "lduupdate(A+u*u')" begin
     u = ones(5)
     v = [1.0, 2, 0, -1, 1]

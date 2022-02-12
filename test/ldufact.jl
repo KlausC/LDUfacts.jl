@@ -1,9 +1,4 @@
 
-using Random
-
-Random.seed!(1)
-essential(x) = abs(x) < 1e-13 ? zero(x) : x
-
 res(A, la) = la.P' * A * la.P - la.L * la.D * la.U
 
 @testset "throwing" begin
@@ -42,10 +37,22 @@ end
 end
 
 @testset "ldu!(7,10), $ps" for ps in (NoPivot(), DiagonalPivot(), FullPivot())
-    R = float.(rand(-1:1, 10 ,7))
+    R = [
+         0  -1   0   0   0  -1  -1
+        -1   1   0   0  -1  -1   0
+         1   1   1   1  -1   1   0
+         1   0   1   0   0   0   1
+         0   0   0  -1   0   0   0
+         0  -1  -1   0  -1  -1   0
+         0   0   0   1   1   0  -1
+        -1   1  -1  -1   1   0  -1
+         0   1  -1  -1  -1   0   0
+        -1  -1   0   1   0   1  -1
+    ]
+    R = float.(R)
     A = R * Diagonal([1,1,1,1,-1,-1,-1]) * R'
-    la = ldu(copy(A), ps, tol=-1.0, check=false)
-    @test (norm(res(A, la)) < 1e-14) == issuccess(la)
+    la = ldu(copy(A), ps, tol=-1, check=false)
+    @test norm(res(A, la)) < 1e-14
     @test issuccess(la) == !(ps isa NoPivot)
     issuccess(la) && @test rank(la) == 7
 end
@@ -57,3 +64,31 @@ end
     @test issuccess(la)
     @test iszero(res(A, la))
 end
+
+@testset "simple complex" begin
+    A = [
+        -3//1+0//1*im   3//2-2//1*im  -1//1+2//1*im
+         3//2+2//1*im   2//1+0//1*im  -3//2-1//2*im
+        -1//1-2//1*im  -3//2+1//2*im  -3//2+0//1*im
+    ]
+    la = ldu(A, FullPivot(), tol = 0)
+    @test issuccess(la)
+    @test rank(la) == 3
+    @test iszero(res(A, la))
+end
+
+@testset "advanced complex and rational" begin
+    A = [
+        2//1+0//1*im   2//1-3//2*im   0//1-2//1*im   3//1+3//1*im  -1//1+1//1*im
+        2//1+3//2*im   1//1+0//1*im  -1//2+1//2*im  -3//2+2//1*im   1//1+0//1*im
+        0//1+2//1*im  -1//2-1//2*im  -1//1+0//1*im   1//1-3//2*im  -3//2-3//2*im
+        3//1-3//1*im  -3//2-2//1*im   1//1+3//2*im   3//1+0//1*im   1//1+1//2*im
+       -1//1-1//1*im   1//1+0//1*im  -3//2+3//2*im   1//1-1//2*im  -1//1+0//1*im
+    ]
+    A = big.(A)
+    la = ldu(A, FullPivot(), tol = 0)
+    @test issuccess(la)
+    @test rank(la) == 5
+    @test iszero(res(A, la))
+end
+
