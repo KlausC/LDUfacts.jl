@@ -1,3 +1,4 @@
+using LDUFacts: piv_to_perm, perm_to_piv
 
 res(A, la) = la.P' * A * la.P - la.L * la.D * la.U
 
@@ -92,3 +93,18 @@ end
     @test iszero(res(A, la))
 end
 
+@testset "PivotLike" begin
+    A = [20 4 11 -23 20; 4 -38 -25 -46 -1; 11 -25 12 -7 27; -23 -46 -7 10 14; 20 -1 27 14 -3] .// 4 
+    la = ldu(A, FullPivot())
+    ps = PivotLike(la)
+    lb = ldu(A, ps)
+    @test la.piv == lb.piv
+    @test la.pam == lb.pam
+    @test la.ame == lb.ame
+end
+
+@testset "perm_to_piv" begin
+    perm = [2, 4, 3, 9, 5, 1, 10, 7, 6, 8]
+    piv = perm_to_piv(perm)
+    @test piv_to_perm(piv) == perm
+end

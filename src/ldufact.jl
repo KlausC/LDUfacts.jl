@@ -5,7 +5,7 @@ function Base.getproperty(lf::LDUPivoted, s::Symbol)
     s == :L && return UnitUpperTriangular(lf.factors)'
     s == :D && return Diagonal(diag(lf.factors))
     s == :d && return diag(lf.factors)
-    s == :p && return permutation(lf.piv)
+    s == :p && return piv_to_perm(lf.piv)
     s == :P && return LDUPerm(lf.piv, lf.pam, lf.ame)
     getfield(lf, s)
 end
@@ -13,7 +13,7 @@ end
 LinearAlgebra.rank(lf::LDUPivoted) = lf.rank
 LinearAlgebra.issuccess(lf::LDUPivoted) = lf.info == 0
 
-function permutation(piv::AbstractVector{T}) where T<:Integer
+function piv_to_perm(piv::AbstractVector{T}) where T<:Integer
     permbypiv!(collect(Base.OneTo(T(length(piv)))), piv)
 end
 
@@ -83,6 +83,7 @@ function permbypiv!(A::StridedMatrix, piv::AbstractVector{<:Integer}, pam::Abstr
     A
 end
 
+#=
 function LinearAlgebra.nullspace(la::LDUPivoted)
     pp = invA(la.p)
     n = length(pp)
@@ -93,14 +94,14 @@ function imagespace(la::LDUPivoted)
     pp = invA(la.p)
     la.L[pp,1:lp.rank]
 end
-
-absapp(a::Real) = abs(a)
+=#
 
 """
     absapp(x)
 
 Squareroot-less approximation to `abs(x)`. That may differ from `abs` for complex arguments.
 """
+absapp(a::Real) = abs(a)
 function absapp(a::Complex{T}) where T
     s, r = minmax(absapp(real(a)), absapp(imag(a)))
     if iszero(r)
@@ -181,7 +182,8 @@ function ldu!(A::StridedMatrix{T}, ps::P; iter::Integer=0, tol::Real=0.0, check:
     n = checksquare(A)
     nn = iter <= 0 ? n : min(iter, n)
     piv = collect(1:n)
-    na = P <: FullPivot ? n : 0
+    P <: PivotLike && length(ps.piv) != n && throw(ArgumentError("PivotLike with wrong dimension"))
+    na = P <: FullPivot ? n : P <: PivotLike ? length(ps.pam) : 0
     pam = zeros(Int, na)
     ame = zeros(T, na)
     rank = n
@@ -216,13 +218,15 @@ function ldu!(A::StridedMatrix{T}, ps::P; iter::Integer=0, tol::Real=0.0, check:
     LDUPivoted(A, piv, rank, stop, info, pam, ame)
 end
 
+pivabs2(x::T) where T<:Union{Real,Complex{<:Real}} = abs2(x)
+
 function _pivotstep!(A, k, ::FullPivot, piv, pam, ame)
     n = size(A, 1)
     a = zero(real(eltype(A)))
     jj = ii = k
     @inbounds for j = k:n
         for i = j:-1:k
-            b = abs2(A[i,j])
+            b = pivabs2(A[i,j])
             if b > a
                 a = b
                 ii = i
@@ -237,12 +241,22 @@ function _pivotstep!(A, k, ::FullPivot, piv, pam, ame)
     end
 end
 
+function _pivotstep!(A, k, p::PivotLike, piv, pam, ame)
+    ii = p.piv[k]
+    jj = k > length(p.pam) || p.pam[k] == 0 ? ii : p.pam[k]
+    # println("pivot($k) = ($ii, $jj)")
+    _swap_upper!(A, k, ii, piv)
+    if ii != jj
+        _addto_upper!(A, k, jj, pam, ame)
+    end
+end
+
 function _pivotstep!(A, k, ::DiagonalPivot, piv, pam, ame)
     n = size(A, 1)
     a = zero(A[k,k])
     jj = k
     for j = k:n
-        b = abs2(A[j,j])
+        b = pivabs2(A[j,j])
         if b > a
             a = b
             jj = j
@@ -356,3 +370,40 @@ end
 (*)(A::AbstractArray, p::LDUPerm) = rmul!(copy(A), p)
 (*)(p::Adjoint{<:Any,<:LDUPerm}, A::AbstractMatrix) = lmul!(p, copy(A))
 (*)(p::Adjoint{<:Any,<:LDUPerm}, A::AbstractVector) = lmul!(p, copy(A))
+
+
+"""
+    perm_to_piv(perm)
+
+Given a permutation vector `perm`, create an integer vector `p` of same length, such that the
+product of involutions `(k, p[k])` is equivalent with `perm`.
+
+Invariant:
+    piv_to_perm(perm_to_piv(perm)) == perm
+
+If `k == p[k]` that is identity. The order of operations in the product is right to left.
+
+If `perm` is not a permutation, the result is undefined.
+"""
+function perm_to_piv(perm::AbstractVector{<:Integer})
+    ax = axes(perm, 1)
+    w = similar(perm, ax)
+    p = similar(perm, ax)
+    @inbounds for k in ax
+        w[k] = p[k] = k
+    end
+    @inbounds for wb in ax
+        la = perm[wb]
+        lb = p[wb]
+        if la == lb
+            p[wb] = wb
+        elseif la in ax
+            wa = w[la]
+            p[wa] = lb
+            p[wb] = wa
+            w[la] = wb
+            w[lb] = wa
+        end
+    end
+    p
+end

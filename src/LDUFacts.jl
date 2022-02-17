@@ -8,7 +8,7 @@ import LinearAlgebra: rmul!, lmul!, adjoint
 import Base: (*)
 
 export ldu, ldu!, ldu_update!
-export NoPivot, DiagonalPivot, FullPivot
+export NoPivot, DiagonalPivot, FullPivot, PivotLike
 
 struct LDUPivoted{S,T<:AbstractMatrix{S},F<:Real}
     factors::T
@@ -29,6 +29,12 @@ end
 
 struct DiagonalPivot <: PivotingStrategy end
 struct FullPivot <: PivotingStrategy end
+struct PivotLike{S} <: PivotingStrategy
+    piv::Vector{Int}
+    pam::Vector{Int}
+    ame::Vector{S}
+    PivotLike(la::LDUPivoted{S}) where S = new{S}(la.piv, la.pam, la.ame)
+end
 
 include("ldufact.jl")
 include("lduupdate.jl")
