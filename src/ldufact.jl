@@ -218,7 +218,9 @@ function ldu!(A::StridedMatrix{T}, ps::P; iter::Integer=0, tol::Real=0.0, check:
     LDUPivoted(A, piv, rank, stop, info, pam, ame)
 end
 
-pivabs2(x::T) where T<:Union{Real,Complex{<:Real}} = abs2(x)
+pivabs(x::T) where T<:Union{Real,Complex{<:Real}} = abs2(x)
+pivabs(x::Rational) = abs(x.num) + abs(x.den)
+pivabs(x::Complex{<:Rational}) = pivabs(real(x)) + pivabs(imag(x))
 
 function _pivotstep!(A, k, ::FullPivot, piv, pam, ame)
     n = size(A, 1)
@@ -226,7 +228,7 @@ function _pivotstep!(A, k, ::FullPivot, piv, pam, ame)
     jj = ii = k
     @inbounds for j = k:n
         for i = j:-1:k
-            b = pivabs2(A[i,j])
+            b = pivabs(A[i,j])
             if b > a
                 a = b
                 ii = i
@@ -256,7 +258,7 @@ function _pivotstep!(A, k, ::DiagonalPivot, piv, pam, ame)
     a = zero(A[k,k])
     jj = k
     for j = k:n
-        b = pivabs2(A[j,j])
+        b = pivabs(A[j,j])
         if b > a
             a = b
             jj = j
