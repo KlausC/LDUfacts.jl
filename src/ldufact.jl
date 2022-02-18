@@ -219,7 +219,7 @@ function ldu!(A::StridedMatrix{T}, ps::P; iter::Integer=0, tol::Real=0.0, check:
 end
 
 pivabs(x::T) where T<:Union{Real,Complex{<:Real}} = abs2(x)
-pivabs(x::Rational) = abs(x.num) + abs(x.den)
+pivabs(x::Rational) = 1 / (abs(x.num) + abs(x.den))
 pivabs(x::Complex{<:Rational}) = pivabs(real(x)) + pivabs(imag(x))
 
 function _pivotstep!(A, k, ::FullPivot, piv, pam, ame)
