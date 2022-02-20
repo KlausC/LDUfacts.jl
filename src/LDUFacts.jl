@@ -4,8 +4,8 @@ using LinearAlgebra
 
 using LinearAlgebra: checksquare
 using LinearAlgebra: PivotingStrategy, NoPivot
-import LinearAlgebra: rmul!, lmul!, adjoint, det, logdet, logabsdet
-import Base: *, \, size, inv
+import LinearAlgebra: rmul!, lmul!, ldiv!, rdiv!, adjoint, det, logdet, logabsdet
+import Base: *, \, /, size, inv
 
 export ldu, ldu!, ldu_update!
 export NoPivot, DiagonalPivot, FullPivot, PivotLike

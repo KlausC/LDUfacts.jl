@@ -133,7 +133,7 @@ function mult_by_revperm!(A::StridedMatrix, piv::AbstractVector{<:Integer}, pam:
     if dims == 2 || dims isa Colon
         m, nn = size(A)
         n > nn && throw(ArgumentError("cannot permute $nn columns by permutation of length $n"))
-        for i = 1:n
+        for i = n:-1:1
             if i <= ma
                 pa = pam[i]
                 bi = adjoint(B[i])
@@ -454,13 +454,34 @@ end
 (*)(p::LDUPerm, A::AbstractVector) = lmul!(p, copy(A))
 (*)(A::AbstractMatrix, p::Adjoint{<:Any,<:LDUPerm}) = rmul!(copy(A), p)
 
-function \(p::LDUPivoted, A::AbstractArray)
-    a = p.P' * A
-    b = p.L \ a
-    c = p.d .\ b
-    d = p.U \ c
-    e = p.P * d
-    e
+function ldiv!(p::LDUPivoted, A::StridedArray)
+    lmul!(p.P', A)
+    ldiv!(p.L, A)
+    for i = 1:rank(p)
+        A[i,:] = p.factors[i,i] \ A[i,:]
+    end
+    ldiv!(p.U, A)
+    lmul!(p.P, A)
+end
+
+function rdiv!(A::StridedArray, p::LDUPivoted)
+    rmul!(A, p.P)
+    rdiv!(A, p.U)
+    for i = 1:rank(p)
+        A[:,i] = A[:,i] / p.factors[i,i]
+    end
+    rdiv!(A, p.L)
+    rmul!(A, p.P')
+end
+
+function \(p::LDUPivoted{T}, A::AbstractArray{S}) where {S,T}
+    P = promote_type(S, T)
+    ldiv!(p, Array{P}(A))
+end
+
+function /(A::AbstractArray{S}, p::LDUPivoted{T}) where {S,T}
+    P = promote_type(S, T)
+    rdiv!(Array{P}(A), p)
 end
 
 Base.inv(p::LDUPivoted{T}) where T = p \ Matrix{T}(I(size(p, 1)))

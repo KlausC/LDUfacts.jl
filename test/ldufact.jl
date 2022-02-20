@@ -97,6 +97,7 @@ end
     @test logdet(la) ≈ logdet(A)
     b = big.([1+0im, 2, 3, 4, 5])
     @test la \ b == A \ b
+    @test b' / la == b' / A
 end
 
 @testset "PivotLike" begin
