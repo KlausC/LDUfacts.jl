@@ -54,3 +54,26 @@ function ldu_update!(ldu::LDUPivoted, u::AbstractVector, v::AbstractVector, f::R
     ldu_update!(ldu, upv, f)
     ldu_update!(ldu, umv, -f)
 end
+
+splitexp(a::AbstractFloat) = frexp(a)
+function splitexp(a::Union{Integer,Rational})
+    q, x = frexp(float(a))
+    x >= 0 ? a / 2^x : a * 2^(-x), x
+end
+
+"""
+    sqrtapp(x)
+
+Rational approximation of `sqrt(x)`.
+"""
+function sqrtapp(a::Real)
+    q, x = splitexp(a)
+    if isodd(x)
+        q += q
+        x -= 1
+    end
+    x ÷= 2
+    c = (12 - (3 - q)^2) / 8
+    # c = (q / c + c) / 2
+    x >= 0 ? c * 2^x : c / 2^(-x)
+end

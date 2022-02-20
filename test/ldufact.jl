@@ -17,6 +17,7 @@ end
     @test la.p == [1, 2, 3]
     @test norm(res(A, la)) <= 1e-13
     @test Matrix(la.P) == I(3)
+    @test propertynames(la) ⊇ (:U, :L, :D, :d, :p, :P)
 end
 @testset "ldu(3,2) DiagonalPivot" begin
     A = Matrix(Symmetric([1. 0 2; 0 1 1; 0 0 1]))

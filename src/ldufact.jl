@@ -57,8 +57,9 @@ function mult_by_perm!(A::StridedMatrix, piv::AbstractVector{<:Integer}, pam::Ab
             i > ma && continue
             pa = pam[i]
             if pa != 0
+                bi = adjoint(B[i])
                 for k = 1:m
-                    A[i, k] += A[pa,k] * adjoint(B[i])
+                    A[i, k] += A[pa,k] * bi
                 end
             end
         end
@@ -76,8 +77,9 @@ function mult_by_perm!(A::StridedMatrix, piv::AbstractVector{<:Integer}, pam::Ab
             i > ma && continue
             pa = pam[i]
             if pa != 0
+                bi = B[i]
                 for k = 1:m
-                    A[k,i] += A[k,pa] * B[i]
+                    A[k,i] += A[k,pa] * bi
                 end
             end
         end
@@ -93,9 +95,8 @@ function mult_by_revperm!(A::StridedVector, piv::AbstractVector{<:Integer}, pam:
     for i = n:-1:1
         if i <= ma
             pa = pam[i]
-            bi = B[i]
             if pa != 0
-                A[pa] += A[i] * bi
+                A[pa] += A[i] * B[i]
             end
         end
         pi = piv[i]
@@ -115,8 +116,8 @@ function mult_by_revperm!(A::StridedMatrix, piv::AbstractVector{<:Integer}, pam:
         for i = n:-1:1
             if i <= ma
                 pa = pam[i]
-                bi = B[i]
                 if pa != 0
+                    bi = B[i]
                     for k = 1:m
                         A[pa, k] += A[i,k] * bi
                     end
@@ -136,8 +137,8 @@ function mult_by_revperm!(A::StridedMatrix, piv::AbstractVector{<:Integer}, pam:
         for i = n:-1:1
             if i <= ma
                 pa = pam[i]
-                bi = adjoint(B[i])
                 if pa != 0
+                    bi = adjoint(B[i])
                     for k = 1:m
                         A[k,pa] += A[k,i] * bi
                     end
@@ -188,24 +189,6 @@ function absapp(a::Complex{T}) where T
         c = c * r
         s / r * s / 2 + r
     end
-end
-
-splitexp(a::AbstractFloat) = frexp(a)
-function splitexp(a::Union{Integer,Rational})
-    q, x = frexp(float(a))
-    x >= 0 ? a / 2^x : a * 2^(-x), x
-end
-
-function sqrtapp(a::Real)
-    q, x = splitexp(a)
-    if isodd(x)
-        q += q
-        x -= 1
-    end
-    x ÷= 2
-    c = (12 - (3 - q)^2) / 8
-    c = (q / c + c) / 2
-    x >= 0 ? c * 2^x : c / 2^(-x)
 end
 
 default_tol(A::AbstractMatrix, ::PivotingStrategy) = eps(float(maximum(abs, diag(A))) * size(A, 1))
