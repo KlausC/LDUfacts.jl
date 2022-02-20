@@ -14,13 +14,15 @@ LinearAlgebra.rank(lf::LDUPivoted) = lf.rank
 LinearAlgebra.issuccess(lf::LDUPivoted) = lf.info == 0
 
 function piv_to_perm(piv::AbstractVector{T}) where T<:Integer
-    permbypiv!(collect(Base.OneTo(T(length(piv)))), piv)
+    mult_by_perm!(collect(Base.OneTo(T(length(piv)))), piv)
 end
 
 const PAM = Int[]
 const AME = Float64[]
 
-function permbypiv!(A::StridedVector, piv::AbstractVector{<:Integer}, pam::AbstractVector{<:Integer}=PAM, B::AbstractVector=AME; dims=1)
+Base.size(p::LDUPivoted, x...) = size(p.factors, x...)
+
+function mult_by_perm!(A::StridedVector, piv::AbstractVector{<:Integer}, pam::AbstractVector{<:Integer}=PAM, B::AbstractVector=AME; dims=1)
     n = length(piv)
     nn = length(A)
     ma = length(pam)
@@ -33,13 +35,13 @@ function permbypiv!(A::StridedVector, piv::AbstractVector{<:Integer}, pam::Abstr
         i > ma && continue
         pa = pam[i]
         if pa != 0
-            A[i] += A[pa] * B[i]
+            A[i] += A[pa] * adjoint(B[i])
         end
     end
     A
 end
 
-function permbypiv!(A::StridedMatrix, piv::AbstractVector{<:Integer}, pam::AbstractVector{<:Integer}=PAM, B::AbstractVector=AME; dims = 1)
+function mult_by_perm!(A::StridedMatrix, piv::AbstractVector{<:Integer}, pam::AbstractVector{<:Integer}=PAM, B::AbstractVector=AME; dims = 1)
     n = length(piv)
     ma = length(pam)
     if dims == 1 || dims isa Colon
@@ -83,6 +85,75 @@ function permbypiv!(A::StridedMatrix, piv::AbstractVector{<:Integer}, pam::Abstr
     A
 end
 
+function mult_by_revperm!(A::StridedVector, piv::AbstractVector{<:Integer}, pam::AbstractVector{<:Integer}=PAM, B::AbstractVector=AME; dims=1)
+    n = length(piv)
+    nn = length(A)
+    ma = length(pam)
+    n > nn && throw(ArgumentError("cannot permute vector of length $nn by permutation of length $n"))
+    for i = n:-1:1
+        if i <= ma
+            pa = pam[i]
+            bi = B[i]
+            if pa != 0
+                A[pa] += A[i] * bi
+            end
+        end
+        pi = piv[i]
+        if i != pi
+            A[i], A[pi] = A[pi], A[i]
+        end
+    end
+    A
+end
+
+function mult_by_revperm!(A::StridedMatrix, piv::AbstractVector{<:Integer}, pam::AbstractVector{<:Integer}=PAM, B::AbstractVector=AME; dims = 1)
+    n = length(piv)
+    ma = length(pam)
+    if dims == 1 || dims isa Colon
+        nn, m = size(A)
+        n > nn && throw(ArgumentError("cannot permute $nn rows by permutation of length $n"))
+        for i = n:-1:1
+            if i <= ma
+                pa = pam[i]
+                bi = B[i]
+                if pa != 0
+                    for k = 1:m
+                        A[pa, k] += A[i,k] * bi
+                    end
+                end
+            end
+            j = piv[i]
+            if i != j
+                for k = 1:m
+                    A[i,k], A[j,k] = A[j,k], A[i,k]
+                end
+            end
+        end
+    end
+    if dims == 2 || dims isa Colon
+        m, nn = size(A)
+        n > nn && throw(ArgumentError("cannot permute $nn columns by permutation of length $n"))
+        for i = 1:n
+            if i <= ma
+                pa = pam[i]
+                bi = adjoint(B[i])
+                if pa != 0
+                    for k = 1:m
+                        A[k,pa] += A[k,i] * bi
+                    end
+                end
+            end
+            j = piv[i]
+            if i != j
+                for k = 1:m
+                    A[k,i], A[k,j] = A[k,j], A[k,i]
+                end
+            end
+        end
+    end
+    A
+end
+
 #=
 function LinearAlgebra.nullspace(la::LDUPivoted)
     pp = invA(la.p)
@@ -110,10 +181,12 @@ function absapp(a::Complex{T}) where T
         x = (s / r) ^ 2
         #q = x + 1
         x /= 2
-        c = x - x * x / (oftype(x, 14) / oftype(x, 5)) + 1
+        #c = x - x * x / (oftype(x, 14) / oftype(x, 5)) + 1
         #c = (q / c + c) / 2
         #c = (q / c + c) / 2
+        c = x + 1
         c = c * r
+        s / r * s / 2 + r
     end
 end
 
@@ -187,23 +260,22 @@ function ldu!(A::StridedMatrix{T}, ps::P; iter::Integer=0, tol::Real=0.0, check:
     pam = zeros(Int, na)
     ame = zeros(T, na)
     rank = n
-
     stop = tol >= 0 ? tol : default_tol(A, ps)
-    stop2 = stop^2
 
     for k = 1:nn
         _pivotstep!(A, k, ps, piv, pam, ame)
         
         akk = A[k,k]
-        if abs2(akk) <= stop2
+        if pivabs(akk) <= stop
             rank = k - 1
             break
         end
         for j = k+1:n
             akj = A[k,j] / akk
-            for i = k+1:j
+            for i = k+1:j-1
                 @inbounds A[i,j] -= akj * adjoint(A[k,i])
             end
+            @inbounds A[j,j] -= real(akj * adjoint(A[k,j]))
         end
         for i = 1:min(k-1,rank)
             @inbounds A[i,k] /= A[i,i]
@@ -214,13 +286,14 @@ function ldu!(A::StridedMatrix{T}, ps::P; iter::Integer=0, tol::Real=0.0, check:
             @inbounds A[i,k] /= A[i,i]
         end
     end
-    info = verifycheck(A, stop2, ps, check, rank)
+    info = verifycheck(A, stop, ps, check, rank)
     LDUPivoted(A, piv, rank, stop, info, pam, ame)
 end
 
 pivabs(x::T) where T<:Union{Real,Complex{<:Real}} = abs2(x)
-pivabs(x::Rational) = 1 / (abs(x.num) + abs(x.den))
-pivabs(x::Complex{<:Rational}) = pivabs(real(x)) + pivabs(imag(x))
+pivabs(x::Union{Rational,Complex{<:Rational}}) = iszero(x) ? zero(x) : 1 / pivsum(x)
+pivsum(x::Rational) = iszero(x.num) ? zero(x.num) : abs(x.den) + abs(x.num)
+pivsum(x::Complex{<:Rational}) = pivsum(real(x)) + pivsum(imag(x))
 
 function _pivotstep!(A, k, ::FullPivot, piv, pam, ame)
     n = size(A, 1)
@@ -255,7 +328,7 @@ end
 
 function _pivotstep!(A, k, ::DiagonalPivot, piv, pam, ame)
     n = size(A, 1)
-    a = zero(A[k,k])
+    a = zero(real(eltype(A)))
     jj = k
     for j = k:n
         b = pivabs(A[j,j])
@@ -317,7 +390,7 @@ function _addto_upper!(A::AbstractMatrix, i::Int, j::Int, pam, ame)
         for k = 1:i-1
             A[k,i] += eps * A[k,j]
         end
-        A[i,i] = eps2 * ajj + aii + epsd * 2
+        A[i,i] = real(eps2 * ajj + aii + epsd * 2)
         #println("eps = $eps, A[$i,$i] = $eps2 * $ajj + $aii + $epsd * 2 = $(A[i,i])")
         for k = i+1:j-1
             A[i,k] += adjoint(eps * A[k,j])
@@ -332,21 +405,21 @@ function _addto_upper!(A::AbstractMatrix, i::Int, j::Int, pam, ame)
     nothing
 end
 
-function verifycheck(A::AbstractMatrix{T}, stop2, ::P, check::Bool, rank::Integer) where {T,P<:PivotingStrategy}
+function verifycheck(A::AbstractMatrix{T}, stop, ::P, check::Bool, rank::Integer) where {T,P<:PivotingStrategy}
     info = 0
     m, n = size(A)
     if !(P <: FullPivot)
-        a = zero(T)
+        a = zero(real(eltype(A)))
         for j = rank+1:n
             for i = rank+1:j
                 j > m && break
-                b = abs2(A[i,j])
+                b = pivabs(A[i,j])
                 if b > a
                     a = b
                 end
             end
         end
-        if a > stop2
+        if a > stop
             info = 1
         end
     end
@@ -364,15 +437,55 @@ end
 
 adjoint(p::S) where {T,S<:LDUPerm{T}} = Adjoint{T,S}(p)
 
-rmul!(A::StridedArray, p::LDUPerm) = permbypiv!(A, p.piv, p.pam, p.ame, dims = 2)
+rmul!(A::StridedArray, p::LDUPerm) = mult_by_perm!(A, p.piv, p.pam, p.ame, dims = 2)
+lmul!(p::LDUPerm, A::StridedArray) = mult_by_revperm!(A, p.piv, p.pam, p.ame, dims = 1)
 function lmul!(P::Adjoint{<:Any,<:LDUPerm}, A::StridedArray)
     p = P.parent
-    permbypiv!(A, p.piv, p.pam, p.ame, dims = 1)
+    mult_by_perm!(A, p.piv, p.pam, p.ame, dims = 1)
+end
+function rmul!(A::StridedArray, P::Adjoint{<:Any,<:LDUPerm})
+    p = P.parent
+    mult_by_revperm!(A, p.piv, p.pam, p.ame, dims = 2)
 end
 (*)(A::AbstractArray, p::LDUPerm) = rmul!(copy(A), p)
 (*)(p::Adjoint{<:Any,<:LDUPerm}, A::AbstractMatrix) = lmul!(p, copy(A))
 (*)(p::Adjoint{<:Any,<:LDUPerm}, A::AbstractVector) = lmul!(p, copy(A))
+(*)(p::LDUPerm, A::AbstractArray) = lmul!(p, copy(A))
+(*)(p::LDUPerm, A::AbstractVector) = lmul!(p, copy(A))
+(*)(A::AbstractMatrix, p::Adjoint{<:Any,<:LDUPerm}) = rmul!(copy(A), p)
 
+function \(p::LDUPivoted, A::AbstractArray)
+    a = p.P' * A
+    b = p.L \ a
+    c = p.d .\ b
+    d = p.U \ c
+    e = p.P * d
+    e
+end
+
+Base.inv(p::LDUPivoted{T}) where T = p \ Matrix{T}(I(size(p, 1)))
+
+function det(p::LDUPivoted)
+    prod(real.(p.d))
+end
+function logabsdet(p::LDUPivoted{T}) where T
+    sig = one(real(T))
+    das = zero(float(real(T)))
+    n = size(p.factors, 1)
+    for k = 1:n
+        x = p.factors[k,k]
+        if real(x) < 0
+            sig *= -1
+        end
+        das += log(abs(x))
+    end
+    das, sig
+end
+function logdet(p::LDUPivoted{T}) where T
+    d, s = logabsdet(p)
+    s <= 0 && throw(DomainError(s))
+    d
+end
 
 """
     perm_to_piv(perm)

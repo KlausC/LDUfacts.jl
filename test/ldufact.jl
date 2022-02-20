@@ -1,4 +1,4 @@
-using LDUFacts: piv_to_perm, perm_to_piv
+using LDUFacts: piv_to_perm, perm_to_piv, LDUPerm
 
 res(A, la) = la.P' * A * la.P - la.L * la.D * la.U
 
@@ -54,7 +54,7 @@ end
     A = R * Diagonal([1,1,1,1,-1,-1,-1]) * R'
     la = ldu(copy(A), ps, tol=-1, check=false)
     @test norm(res(A, la)) < 1e-14
-    @test issuccess(la) == !(ps isa NoPivot)
+    @test issuccess(la)
     issuccess(la) && @test rank(la) == 7
 end
 
@@ -72,10 +72,12 @@ end
          3//2+2//1*im   2//1+0//1*im  -3//2-1//2*im
         -1//1-2//1*im  -3//2+1//2*im  -3//2+0//1*im
     ]
-    la = ldu(A, FullPivot(), tol = 0)
+    la = ldu(A, DiagonalPivot(), tol = 0)
     @test issuccess(la)
     @test rank(la) == 3
     @test iszero(res(A, la))
+    @test iszero(inv(A) - inv(la))
+    @test det(A) == det(la)
 end
 
 @testset "advanced complex and rational" begin
@@ -91,6 +93,10 @@ end
     @test issuccess(la)
     @test rank(la) == 5
     @test iszero(res(A, la))
+    @test inv(la) == inv(A)
+    @test logdet(la) ≈ logdet(A)
+    b = big.([1+0im, 2, 3, 4, 5])
+    @test la \ b == A \ b
 end
 
 @testset "PivotLike" begin
@@ -107,4 +113,14 @@ end
     perm = [2, 4, 3, 9, 5, 1, 10, 7, 6, 8]
     piv = perm_to_piv(perm)
     @test piv_to_perm(piv) == perm
+end
+
+@testset "mut_by_revperm" begin
+    P = LDUPerm([1, 2], [2, 0], [1+2im, 0])
+    b = [10+0im, 20]
+    MP = Matrix(P)
+    @test MP == [1 0; 1+2im 1]
+    @test P * b == MP * b
+    @test P * [b b] == MP * [b b]
+    @test [b'; b'] * P' == [b'; b'] * MP'
 end
