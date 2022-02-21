@@ -131,14 +131,6 @@ function absapp(a::Complex{T}) where T
     if iszero(r)
         zero(s) / one(s)
     else
-        x = (s / r) ^ 2
-        #q = x + 1
-        x /= 2
-        #c = x - x * x / (oftype(x, 14) / oftype(x, 5)) + 1
-        #c = (q / c + c) / 2
-        #c = (q / c + c) / 2
-        c = x + 1
-        c = c * r
         s / r * s / 2 + r
     end
 end
