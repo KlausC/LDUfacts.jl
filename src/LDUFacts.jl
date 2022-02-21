@@ -10,31 +10,33 @@ import Base: *, \, /, size, inv
 export ldu, ldu!, ldu_update!
 export NoPivot, DiagonalPivot, FullPivot, PivotLike
 
-struct LDUPivoted{S,T<:AbstractMatrix{S},F<:Real}
-    factors::T
+struct LDUPivoted{T,V<:AbstractMatrix{T},F<:Real} <: Factorization{T}
+    factors::V
     piv::Vector{Int}
     rank::Int
     tol::F
     info::Int
     pam::Vector{Int}
-    ame::Vector{S}
+    ame::Vector{T}
 end
 
-struct LDUPerm{T,S}
+struct LDUPerm{T}
     piv::Vector{Int}
     pam::Vector{Int}
-    ame::S
-    LDUPerm(piv, pam, ame::S) where {T,S<:AbstractVector{T}} = new{T,S}(piv, pam, ame)
+    ame::Vector{T}
+    LDUPerm(piv, pam, ame::AbstractVector{T}) where T = new{T}(piv, pam, Vector{T}(ame))
 end
 
 struct DiagonalPivot <: PivotingStrategy end
 struct FullPivot <: PivotingStrategy end
-struct PivotLike{S} <: PivotingStrategy
+struct PivotLike{T} <: PivotingStrategy
     piv::Vector{Int}
     pam::Vector{Int}
-    ame::Vector{S}
-    PivotLike(la::LDUPivoted{S}) where S = new{S}(la.piv, la.pam, la.ame)
+    ame::Vector{T}
+    PivotLike(la::LDUPivoted{T}) where T = new{T}(la.piv, la.pam, la.ame)
 end
+
+const SATMatrix{T} = Union{StridedMatrix{T}, Adjoint{T,<:StridedMatrix}, Transpose{T,<:StridedMatrix}}
 
 include("ldufact.jl")
 include("lduupdate.jl")

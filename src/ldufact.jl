@@ -22,30 +22,12 @@ const AME = Float64[]
 
 Base.size(p::LDUPivoted, x...) = size(p.factors, x...)
 
-function mult_by_perm!(A::StridedVector, piv::AbstractVector{<:Integer}, pam::AbstractVector{<:Integer}=PAM, B::AbstractVector=AME; dims=1)
-    n = length(piv)
-    nn = length(A)
-    ma = length(pam)
-    n > nn && throw(ArgumentError("cannot permute vector of length $nn by permutation of length $n"))
-    for i = 1:n
-        pi = piv[i]
-        if i != pi
-            A[i], A[pi] = A[pi], A[i]
-        end
-        i > ma && continue
-        pa = pam[i]
-        if pa != 0
-            A[i] += A[pa] * adjoint(B[i])
-        end
-    end
-    A
-end
-
-function mult_by_perm!(A::StridedMatrix, piv::AbstractVector{<:Integer}, pam::AbstractVector{<:Integer}=PAM, B::AbstractVector=AME; dims = 1)
+function mult_by_perm!(A::StridedArray, piv::AbstractVector{<:Integer}, pam::AbstractVector{<:Integer}=PAM, B::AbstractVector=AME; dims = 1)
     n = length(piv)
     ma = length(pam)
     if dims == 1 || dims isa Colon
-        nn, m = size(A)
+        nn = size(A, 1)
+        m = size(A, 2)
         n > nn && throw(ArgumentError("cannot permute $nn rows by permutation of length $n"))
         for i = 1:n
             j = piv[i]
@@ -65,7 +47,8 @@ function mult_by_perm!(A::StridedMatrix, piv::AbstractVector{<:Integer}, pam::Ab
         end
     end
     if dims == 2 || dims isa Colon
-        m, nn = size(A)
+        m = size(A, 1)
+        nn = size(A, 2)
         n > nn && throw(ArgumentError("cannot permute $nn columns by permutation of length $n"))
         for i = 1:n
             j = piv[i]
@@ -87,31 +70,12 @@ function mult_by_perm!(A::StridedMatrix, piv::AbstractVector{<:Integer}, pam::Ab
     A
 end
 
-function mult_by_revperm!(A::StridedVector, piv::AbstractVector{<:Integer}, pam::AbstractVector{<:Integer}=PAM, B::AbstractVector=AME; dims=1)
-    n = length(piv)
-    nn = length(A)
-    ma = length(pam)
-    n > nn && throw(ArgumentError("cannot permute vector of length $nn by permutation of length $n"))
-    for i = n:-1:1
-        if i <= ma
-            pa = pam[i]
-            if pa != 0
-                A[pa] += A[i] * B[i]
-            end
-        end
-        pi = piv[i]
-        if i != pi
-            A[i], A[pi] = A[pi], A[i]
-        end
-    end
-    A
-end
-
-function mult_by_revperm!(A::StridedMatrix, piv::AbstractVector{<:Integer}, pam::AbstractVector{<:Integer}=PAM, B::AbstractVector=AME; dims = 1)
+function mult_by_revperm!(A::StridedArray, piv::AbstractVector{<:Integer}, pam::AbstractVector{<:Integer}=PAM, B::AbstractVector=AME; dims = 1)
     n = length(piv)
     ma = length(pam)
     if dims == 1 || dims isa Colon
-        nn, m = size(A)
+        nn = size(A, 1)
+        m = size(A, 2)
         n > nn && throw(ArgumentError("cannot permute $nn rows by permutation of length $n"))
         for i = n:-1:1
             if i <= ma
@@ -132,7 +96,8 @@ function mult_by_revperm!(A::StridedMatrix, piv::AbstractVector{<:Integer}, pam:
         end
     end
     if dims == 2 || dims isa Colon
-        m, nn = size(A)
+        m = size(A, 1)
+        nn = size(A, 2)
         n > nn && throw(ArgumentError("cannot permute $nn columns by permutation of length $n"))
         for i = n:-1:1
             if i <= ma
@@ -154,19 +119,6 @@ function mult_by_revperm!(A::StridedMatrix, piv::AbstractVector{<:Integer}, pam:
     end
     A
 end
-
-#=
-function LinearAlgebra.nullspace(la::LDUPivoted)
-    pp = invA(la.p)
-    n = length(pp)
-    inv(la.U)[pp,lp.rank+1:n]
-end
-
-function imagespace(la::LDUPivoted)
-    pp = invA(la.p)
-    la.L[pp,1:lp.rank]
-end
-=#
 
 """
     absapp(x)
@@ -230,11 +182,23 @@ The following access methods for the result type
     rank()      best found rank
     issuccess() true iff decomposition is valid.
 """
-function ldu(A::StridedMatrix, ps::PivotingStrategy; tol::Real=0.0, check::Bool=true)
+function ldu(A::AbstractMatrix, ps::PivotingStrategy; tol::Real=0.0, check::Bool=true)
     ldu!(copy(A), ps; tol, check)
 end
 
+function ldu!(A::Symmetric{T}, ps::P; iter::Integer=0, tol::Real=0.0, check::Bool=true) where {T,P<:PivotingStrategy}
+    _ldu!(A.uplo == 'U' ? A.data : transpose(A.data), ps, iter, float(tol), check)
+end
+
+function ldu!(A::Hermitian{T}, ps::P; iter::Integer=0, tol::Real=0.0, check::Bool=true) where {T,P<:PivotingStrategy}
+    _ldu!(A.uplo == 'U' ? A.data : adjoint(A.data), ps, iter, float(tol), check)
+end
+
 function ldu!(A::StridedMatrix{T}, ps::P; iter::Integer=0, tol::Real=0.0, check::Bool=true) where {T,P<:PivotingStrategy}
+    _ldu!(A, ps, iter, float(tol), check)
+end
+
+function _ldu!(A::SATMatrix{T}, ps::P, iter::Integer, tol::AbstractFloat, check::Bool) where {T,P<:PivotingStrategy}
     n = checksquare(A)
     nn = iter <= 0 ? n : min(iter, n)
     piv = collect(1:n)
@@ -455,16 +419,6 @@ function rdiv!(A::StridedArray, p::LDUPivoted)
     end
     rdiv!(A, p.L)
     rmul!(A, p.P')
-end
-
-function \(p::LDUPivoted{T}, A::AbstractArray{S}) where {S,T}
-    P = promote_type(S, T)
-    ldiv!(p, Array{P}(A))
-end
-
-function /(A::AbstractArray{S}, p::LDUPivoted{T}) where {S,T}
-    P = promote_type(S, T)
-    rdiv!(Array{P}(A), p)
 end
 
 Base.inv(p::LDUPivoted{T}) where T = p \ Matrix{T}(I(size(p, 1)))

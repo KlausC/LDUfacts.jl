@@ -1,6 +1,6 @@
 using LDUFacts: piv_to_perm, perm_to_piv, LDUPerm
 
-res(A, la) = la.P' * A * la.P - la.L * la.D * la.U
+res(A, la) = la.P' * Matrix(A) * la.P - la.L * la.D * la.U
 
 @testset "throwing" begin
    A = [0.0 1; 1 0]
@@ -20,7 +20,7 @@ end
     @test propertynames(la) ⊇ (:U, :L, :D, :d, :p, :P)
 end
 @testset "ldu(3,2) DiagonalPivot" begin
-    A = Matrix(Symmetric([1. 0 2; 0 1 1; 0 0 1]))
+    A = Symmetric([1. 0 2; 0 1 1; 0 0 1])
     la = ldu(A, DiagonalPivot(); check = false)
     @test issuccess(la)
     @test rank(la) == 3
@@ -29,7 +29,7 @@ end
     @test Matrix(la.P) == [1. 0 0; 0 0 1; 0 1 0]
 end
 @testset "ldu(3,2) FullPivot" begin
-    A = Matrix(Symmetric([1. 0 2; 0 1 1; 0 0 1]))
+    A = Hermitian([1. 0 2; 0 1 1; 0 0 1])
     la = ldu(A, FullPivot(); check = false)
     @test issuccess(la)
     @test rank(la) == 3
@@ -90,6 +90,7 @@ end
        -1//1-1//1*im   1//1+0//1*im  -3//2+3//2*im   1//1-1//2*im  -1//1+0//1*im
     ]
     A = big.(A)
+    A = Hermitian(A, :L)
     la = ldu(A, FullPivot(), tol = 0)
     @test issuccess(la)
     @test rank(la) == 5
