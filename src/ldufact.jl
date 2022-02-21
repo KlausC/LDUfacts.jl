@@ -213,7 +213,7 @@ function _ldu!(A::SATMatrix{T}, ps::P, iter::Integer, tol::AbstractFloat, check:
         _pivotstep!(A, k, ps, piv, pam, ame)
         
         akk = A[k,k]
-        if pivabs(akk) <= stop
+        if absapp(akk) <= stop
             rank = k - 1
             break
         end
@@ -256,7 +256,6 @@ function _pivotstep!(A, k, ::FullPivot, piv, pam, ame)
             end
         end
     end
-    # println("pivot($k) = ($ii, $jj)")
     _swap_upper!(A, k, ii, piv)
     if ii != jj
         _addto_upper!(A, k, jj, pam, ame)
@@ -266,7 +265,7 @@ end
 function _pivotstep!(A, k, p::PivotLike, piv, pam, ame)
     ii = p.piv[k]
     jj = k > length(p.pam) || p.pam[k] == 0 ? ii : p.pam[k]
-    # println("pivot($k) = ($ii, $jj)")
+
     _swap_upper!(A, k, ii, piv)
     if ii != jj
         _addto_upper!(A, k, jj, pam, ame)
@@ -284,7 +283,6 @@ function _pivotstep!(A, k, ::DiagonalPivot, piv, pam, ame)
             jj = j
         end
     end
-    #println("pivot($k) = ($jj, $jj)")
     _swap_upper!(A, k, jj, piv)
 end
 _pivotstep!(A, k, ::NoPivot, piv, pam, ame) = nothing
@@ -293,7 +291,6 @@ function _swap_upper!(A::AbstractMatrix, i::Int, j::Int, piv)
     n = size(A, 1)
     i >= j && return
 
-    #println("swap_upper($i, $j)")
     @inbounds begin
         for k = 1:i-1
             A[k,i], A[k,j] = A[k,j], A[k,i]
@@ -322,8 +319,7 @@ end
 function _addto_upper!(A::AbstractMatrix, i::Int, j::Int, pam, ame)
     n = size(A, 1)
     i >= j && return
-    #println("fix_upper($i, $j)")
-    #disp(A, i)
+
     d = A[i,j]
     aii = A[i,i]
     ajj = A[j,j]
@@ -338,7 +334,6 @@ function _addto_upper!(A::AbstractMatrix, i::Int, j::Int, pam, ame)
             A[k,i] += eps * A[k,j]
         end
         A[i,i] = real(eps2 * ajj + aii + epsd * 2)
-        #println("eps = $eps, A[$i,$i] = $eps2 * $ajj + $aii + $epsd * 2 = $(A[i,i])")
         for k = i+1:j-1
             A[i,k] += adjoint(eps * A[k,j])
         end
@@ -360,7 +355,7 @@ function verifycheck(A::AbstractMatrix{T}, stop, ::P, check::Bool, rank::Integer
         for j = rank+1:n
             for i = rank+1:j
                 j > m && break
-                b = pivabs(A[i,j])
+                b = absapp(A[i,j])
                 if b > a
                     a = b
                 end
@@ -431,10 +426,8 @@ function logabsdet(p::LDUPivoted{T}) where T
     das = zero(float(real(T)))
     n = size(p.factors, 1)
     for k = 1:n
-        x = p.factors[k,k]
-        if real(x) < 0
-            sig *= -1
-        end
+        x = real(p.factors[k,k])
+        sig = ifelse(x < 0, -sig, sig)
         das += log(abs(x))
     end
     das, sig

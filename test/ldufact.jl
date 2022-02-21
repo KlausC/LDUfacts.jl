@@ -55,8 +55,8 @@ end
     A = R * Diagonal([1,1,1,1,-1,-1,-1]) * R'
     la = ldu(copy(A), ps, tol=-1, check=false)
     @test norm(res(A, la)) < 1e-14
-    @test issuccess(la)
-    issuccess(la) && @test rank(la) == 7
+    ps isa NoPivot || @test issuccess(la)
+    @test rank(la) == 7
 end
 
 @testset "ldu!(rational)" begin
